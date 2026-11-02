@@ -2,42 +2,63 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>MorseCrypt</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>MORSEEEEEEEE</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+<main>
+    <header>
+        <h1>Dot<span>Dash</span></h1>
+        <!-- <p>Turn text into Morse beeps, and beeps back into text.</p> -->
+    </header>
 
-<div class="card">
+    <nav class="tabs">
+        <button class="tab on" data-tab="encode">Text to Morse</button>
+        <button class="tab" data-tab="decode">Morse to Text</button>
+    </nav>
 
-    <h1>MorseCrypt</h1>
-    <p class="subtitle">Text to Morse audio and back</p>
+    <!-- ENCODE -->
+    <section id="encodePane" class="panel">
+        <textarea id="text" placeholder="Type something... (letters, numbers, spaces)"></textarea>
 
-    <!-- ENCODE SECTION -->
-    <div class="section">
-        <h2>Encode</h2>
-
-        <textarea id="textInput" placeholder="Type text (letters, numbers, spaces)"></textarea>
-
-        <div class="row">
-            <button id="playBtn">Play</button>
-            <button id="saveBtn">Save WAV</button>
+        <div class="speed">
+            <div class="speed-top">
+                <label for="gap">Pause length</label>
+                <strong id="gapVal">2x</strong>
+            </div>
+            <input type="range" id="gap" min="1" max="5" step="0.5" value="2">
+            <div class="presets">
+                <button class="preset" data-v="4">Beginner</button>
+                <button class="preset" data-v="2">Easy</button>
+                <button class="preset" data-v="1">Normal</button>
+            </div>
+            <!-- <small>Beeps stay the same. Only the pauses between letters and words get longer.</small> -->
         </div>
-    </div>
 
-    <!-- DECODE SECTION -->
-    <div class="section">
-        <h2>Decode</h2>
+        <div id="preview" class="morse"></div>
 
-        <input type="file" id="audioInput" accept=".wav,audio/*">
+        <div class="actions">
+            <button id="play" class="primary">Play</button>
+            <button id="stop">Stop</button>
+            <button id="save">Save WAV</button>
+        </div>
+    </section>
 
-        <button id="decodeBtn" class="full">Decode Audio</button>
-    </div>
+    <!-- DECODE -->
+    <section id="decodePane" class="panel" hidden>
+        <label class="file">
+            <input type="file" id="audio" accept=".wav,audio/*">
+        </label>
+        <div class="actions">
+            <button id="decode" class="primary">Decode Audio</button>
+        </div>
+        <div id="decoded" class="big"></div>
+        <div id="decMorse" class="morse"></div>
+    </section>
 
-    <!-- OUTPUT -->
-    <p id="status" class="output"></p>
-
-</div>
-
+    <p id="status"></p>
+</main>
 <script src="script.js"></script>
 </body>
 </html>

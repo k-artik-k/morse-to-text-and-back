@@ -1,7 +1,8 @@
 // ---------- CONFIG ----------
-const SAMPLE_RATE = 44100;
-const FREQ = 650;      // tone pitch in Hz
-const UNIT = 0.08;     // one Morse time unit in seconds (dot = 1, dash = 3)
+const SR = 44100;
+const FREQ = 650;    // beep pitch (Hz)
+const UNIT = 0.1;    // dot length in seconds. Dash = 3x. This never changes.
+const PAD = 0.2;     // silence at start/end
 
 const MORSE = {
     A: ".-",   B: "-...", C: "-.-.", D: "-..",  E: ".",    F: "..-.",
@@ -18,113 +19,192 @@ const MORSE = {
 };
 const REVERSE = Object.fromEntries(Object.entries(MORSE).map(([k, v]) => [v, k]));
 
-const textInput = document.getElementById("textInput");
-const statusEl = document.getElementById("status");
-let audioCtx = null;
-let currentSource = null;
+const $ = id => document.getElementById(id);
+const setStatus = m => { $("status").textContent = m; };
+let ctx = null, src = null, timers = [], stretch = 2;
+const getCtx = () => ctx || (ctx = new (window.AudioContext || window.webkitAudioContext)());
 
-function getCtx() {
-    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    return audioCtx;
+// ---------- TABS ----------
+document.querySelectorAll(".tab").forEach(b => b.onclick = () => {
+    stopAll();
+    document.querySelectorAll(".tab").forEach(t => t.classList.toggle("on", t === b));
+    $("encodePane").hidden = b.dataset.tab !== "encode";
+    $("decodePane").hidden = b.dataset.tab !== "decode";
+    setStatus("");
+});
+
+// ---------- PAUSE LENGTH ----------
+function setGap(v) {
+    stretch = +v;
+    $("gap").value = v;
+    $("gapVal").textContent = v + "x";
+    document.querySelectorAll(".preset").forEach(p => p.classList.toggle("on", +p.dataset.v === stretch));
+}
+$("gap").oninput = () => setGap($("gap").value);
+document.querySelectorAll(".preset").forEach(p => p.onclick = () => setGap(p.dataset.v));
+setGap(2);
+
+// ---------- SHARED ----------
+function render(words, el) {
+    let i = 0;
+    el.innerHTML = words.map(w => '<div class="word">' + w.map(l =>
+        '<div class="ch" data-i="' + (i++) + '"><div class="sym">' +
+        [...l.code].map(c => '<span class="' + (c === "." ? "d" : "l") + '"></span>').join("") +
+        "</div><b>" + (l.ch === "&" ? "&amp;" : l.ch) + "</b></div>").join("") + "</div>").join("");
 }
 
-function setStatus(msg) { statusEl.textContent = msg; }
-
 // ---------- ENCODE ----------
-// Returns { morse: "... --- ... / ...", samples: Float32Array } or { error }
-function encode(text) {
+function parseText(text) {
     const words = text.toUpperCase().trim().split(/\s+/).filter(Boolean);
     if (!words.length) return { error: "Type some text first." };
-
     const bad = [...new Set([...words.join("")].filter(c => !MORSE[c]))];
-    if (bad.length) return { error: "Unsupported character(s): " + bad.join(" ") };
+    if (bad.length) return { error: "Can't encode: " + bad.join(" ") };
+    return { words: words.map(w => [...w].map(c => ({ ch: c, code: MORSE[c] }))) };
+}
 
-    // Build list of [isOn, units]
-    const segs = [];
-    const gap = u => segs.push([0, u]);
-    words.forEach((word, wi) => {
-        if (wi > 0) gap(7);
-        [...word].forEach((ch, ci) => {
-            if (ci > 0) gap(3);
-            [...MORSE[ch]].forEach((sym, si) => {
-                if (si > 0) gap(1);
-                segs.push([1, sym === "." ? 1 : 3]);
+// Gaps: between dots/dashes = 1 unit (fixed), letters = 3 units x s, words = 7 units x s
+function synth(words, s) {
+    const segs = [], times = [];
+    let t = 0;
+    const add = (on, sec) => { segs.push([on, sec]); t += sec; };
+
+    words.forEach((w, wi) => {
+        if (wi) add(0, 7 * UNIT * s);
+        w.forEach((l, li) => {
+            if (li) add(0, 3 * UNIT * s);
+            const start = t;
+            [...l.code].forEach((c, ci) => {
+                if (ci) add(0, UNIT);
+                add(1, c === "." ? UNIT : 3 * UNIT);
             });
+            times.push([start + PAD, t + PAD]);
         });
     });
 
-    const pad = Math.round(0.2 * SAMPLE_RATE);
-    const lens = segs.map(s => Math.round(s[1] * UNIT * SAMPLE_RATE));
-    const total = lens.reduce((a, b) => a + b, 0) + pad * 2;
-    const out = new Float32Array(total);
-    const fade = Math.round(0.005 * SAMPLE_RATE); // 5 ms ramp, avoids clicks
-
+    const pad = Math.round(PAD * SR);
+    const lens = segs.map(g => Math.round(g[1] * SR));
+    const out = new Float32Array(lens.reduce((a, b) => a + b, 0) + pad * 2);
+    const fade = Math.round(0.005 * SR);
     let pos = pad;
-    segs.forEach((seg, i) => {
+    segs.forEach((g, i) => {
         const n = lens[i];
-        if (seg[0]) {
+        if (g[0]) {
             for (let k = 0; k < n; k++) {
                 const env = Math.min(1, k / fade, (n - 1 - k) / fade);
-                out[pos + k] = 0.8 * env * Math.sin(2 * Math.PI * FREQ * k / SAMPLE_RATE);
+                out[pos + k] = 0.8 * env * Math.sin(2 * Math.PI * FREQ * k / SR);
             }
         }
         pos += n;
     });
-
-    const morse = words.map(w => [...w].map(c => MORSE[c]).join(" ")).join(" / ");
-    return { morse, samples: out };
+    return { samples: out, times };
 }
 
-function toWav(samples) {
-    const buf = new ArrayBuffer(44 + samples.length * 2);
+// WAV file. Extra tiny chunk "mrsX" stores dot length + pause length so decoding is exact.
+function toWav(samples, s) {
+    const dataLen = samples.length * 2;
+    const buf = new ArrayBuffer(44 + dataLen + 16);
     const v = new DataView(buf);
-    const str = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
-    str(0, "RIFF"); v.setUint32(4, 36 + samples.length * 2, true);
+    const str = (o, t) => { for (let i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); };
+    str(0, "RIFF"); v.setUint32(4, 36 + dataLen + 16, true);
     str(8, "WAVE"); str(12, "fmt ");
     v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
-    v.setUint32(24, SAMPLE_RATE, true); v.setUint32(28, SAMPLE_RATE * 2, true);
+    v.setUint32(24, SR, true); v.setUint32(28, SR * 2, true);
     v.setUint16(32, 2, true); v.setUint16(34, 16, true);
-    str(36, "data"); v.setUint32(40, samples.length * 2, true);
+    str(36, "data"); v.setUint32(40, dataLen, true);
     for (let i = 0; i < samples.length; i++) {
-        const s = Math.max(-1, Math.min(1, samples[i]));
-        v.setInt16(44 + i * 2, s * 32767, true);
+        v.setInt16(44 + i * 2, Math.max(-1, Math.min(1, samples[i])) * 32767, true);
     }
+    const m = 44 + dataLen;
+    str(m, "mrsX"); v.setUint32(m + 4, 8, true);
+    v.setFloat32(m + 8, UNIT, true); v.setFloat32(m + 12, s, true);
     return new Blob([buf], { type: "audio/wav" });
 }
 
-document.getElementById("playBtn").addEventListener("click", async () => {
-    const r = encode(textInput.value);
-    if (r.error) return setStatus(r.error);
+function fname() {
+    const d = new Date(), p = n => String(n).padStart(2, "0");
+    return "morse-" + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + "-" +
+        p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds()) + "-" +
+        Math.random().toString(36).slice(2, 6) + ".wav";
+}
 
-    const ctx = getCtx();
-    await ctx.resume();
-    if (currentSource) { try { currentSource.stop(); } catch (e) {} }
+function stopAll() {
+    timers.forEach(clearTimeout);
+    timers = [];
+    if (src) { try { src.stop(); } catch (e) {} src = null; }
+    document.querySelectorAll("#preview .ch.active").forEach(e => e.classList.remove("active"));
+}
 
-    const buffer = ctx.createBuffer(1, r.samples.length, SAMPLE_RATE);
-    buffer.copyToChannel(r.samples, 0);
-    const src = ctx.createBufferSource();
-    src.buffer = buffer;
-    src.connect(ctx.destination);
+$("text").oninput = () => {
+    const p = parseText($("text").value);
+    if (p.error) {
+        $("preview").innerHTML = "";
+        setStatus($("text").value.trim() ? p.error : "");
+    } else {
+        render(p.words, $("preview"));
+        setStatus("");
+    }
+};
+
+$("play").onclick = async () => {
+    const p = parseText($("text").value);
+    if (p.error) return setStatus(p.error);
+    render(p.words, $("preview"));
+    stopAll();
+
+    const c = getCtx();
+    await c.resume();
+    const r = synth(p.words, stretch);
+    const buf = c.createBuffer(1, r.samples.length, SR);
+    buf.copyToChannel(r.samples, 0);
+    src = c.createBufferSource();
+    src.buffer = buf;
+    src.connect(c.destination);
     src.start();
-    currentSource = src;
-    setStatus("Playing: " + r.morse);
-});
 
-document.getElementById("saveBtn").addEventListener("click", () => {
-    const r = encode(textInput.value);
-    if (r.error) return setStatus(r.error);
+    const boxes = $("preview").querySelectorAll(".ch");
+    r.times.forEach((t, i) => {
+        timers.push(setTimeout(() => boxes[i].classList.add("active"), t[0] * 1000));
+        timers.push(setTimeout(() => boxes[i].classList.remove("active"), t[1] * 1000));
+    });
+    setStatus("Playing...");
+    timers.push(setTimeout(() => setStatus("Done."), (r.samples.length / SR) * 1000));
+};
 
-    const url = URL.createObjectURL(toWav(r.samples));
+$("stop").onclick = () => { stopAll(); setStatus("Stopped."); };
+
+$("save").onclick = () => {
+    const p = parseText($("text").value);
+    if (p.error) return setStatus(p.error);
+    const r = synth(p.words, stretch);
+    const name = fname();
+    const url = URL.createObjectURL(toWav(r.samples, stretch));
     const a = document.createElement("a");
-    a.href = url;
-    a.download = "morse.wav";
-    a.click();
+    a.href = url; a.download = name; a.click();
     URL.revokeObjectURL(url);
-    setStatus("Saved morse.wav: " + r.morse);
-});
+    setStatus("Saved " + name);
+};
 
 // ---------- DECODE ----------
-const HOP_SEC = 0.005; // analysis window: 5 ms
+const HOP = 0.005;
+
+function readMeta(arr) {
+    try {
+        const v = new DataView(arr);
+        const id = o => String.fromCharCode(v.getUint8(o), v.getUint8(o + 1), v.getUint8(o + 2), v.getUint8(o + 3));
+        if (id(0) !== "RIFF" || id(8) !== "WAVE") return null;
+        let o = 12;
+        while (o + 8 <= arr.byteLength) {
+            const size = v.getUint32(o + 4, true);
+            if (id(o) === "mrsX" && size >= 8) {
+                const unit = v.getFloat32(o + 8, true), s = v.getFloat32(o + 12, true);
+                if (unit > 0.01 && unit < 1 && s >= 1 && s <= 20) return { unit, s };
+                return null;
+            }
+            o += 8 + size + (size & 1);
+        }
+    } catch (e) {}
+    return null;
+}
 
 function mergeRuns(runs) {
     const out = [];
@@ -135,12 +215,12 @@ function mergeRuns(runs) {
     return out;
 }
 
-function decodeSamples(data, sr) {
-    const hop = Math.max(1, Math.round(sr * HOP_SEC));
+function decodeSamples(data, sr, meta) {
+    const hop = Math.max(1, Math.round(sr * HOP));
     const hopSec = hop / sr;
     const n = Math.floor(data.length / hop);
 
-    // 1. RMS envelope
+    // loudness per 5 ms window
     const rms = new Float32Array(n);
     let peak = 0;
     for (let i = 0; i < n; i++) {
@@ -151,11 +231,8 @@ function decodeSamples(data, sr) {
     }
     if (peak < 0.005) return { error: "No signal found in this audio." };
 
-    // 2. Threshold into on/off runs
-    const thr = peak * 0.35;
-    let runs = mergeRuns(Array.from(rms, v => ({ on: v > thr, len: 1 })));
-
-    // 3. Remove glitches shorter than 15 ms
+    // beep on/off runs, glitches under 15 ms removed
+    let runs = mergeRuns(Array.from(rms, v => ({ on: v > peak * 0.35, len: 1 })));
     const minLen = Math.ceil(0.015 / hopSec);
     let changed = true;
     while (changed && runs.length > 1) {
@@ -169,48 +246,57 @@ function decodeSamples(data, sr) {
             }
         }
     }
-
-    // 4. Drop leading and trailing silence
     while (runs.length && !runs[0].on) runs.shift();
     while (runs.length && !runs[runs.length - 1].on) runs.pop();
     if (!runs.length) return { error: "No Morse beeps found." };
 
     const dur = runs.map(r => ({ on: r.on, t: r.len * hopSec }));
+    const ons = dur.filter(d => d.on).map(d => d.t);
 
-    // 5. Estimate the time unit (shortest element)
-    let unit = Math.min(...dur.map(d => d.t));
-    // Our own files: if shortest element is about 3 units, it's all dashes/letter gaps
-    if (Math.abs(unit - 3 * UNIT) < 0.15 * 3 * UNIT) unit = UNIT;
-
-    // 6. Classify and translate
-    let morse = "", text = "", cur = "";
-    const flush = () => {
-        if (cur) { text += REVERSE[cur] || "?"; morse += cur; cur = ""; }
-    };
-    for (const d of dur) {
-        if (d.on) {
-            cur += d.t > 2 * unit ? "-" : ".";
-        } else if (d.t > 5 * unit) {
-            flush(); text += " "; morse += " / ";
-        } else if (d.t > 2 * unit) {
-            flush(); morse += " ";
-        }
+    // dot length
+    let unit, s = null;
+    if (meta) {
+        unit = meta.unit; s = meta.s;
+    } else {
+        const m = Math.min(...ons), M = Math.max(...ons);
+        unit = (M / m > 1.8 || m <= 0.2) ? m : m / 3;
     }
-    flush();
-    return { text: text.trim(), morse: morse.trim() };
+
+    // where letter gap ends and word gap begins
+    let wordCut = 5 * unit * (s || 1);
+    if (!s) {
+        const longs = dur.filter(d => !d.on && d.t >= 2 * unit).map(d => d.t);
+        if (longs.length && Math.max(...longs) / Math.min(...longs) > 1.8) wordCut = Math.min(...longs) * 5 / 3;
+    }
+
+    const words = [];
+    let word = [], cur = "";
+    const flushLetter = () => { if (cur) { word.push({ code: cur, ch: REVERSE[cur] || "?" }); cur = ""; } };
+    const flushWord = () => { flushLetter(); if (word.length) words.push(word); word = []; };
+
+    for (const d of dur) {
+        if (d.on) cur += d.t > 2 * unit ? "-" : ".";
+        else if (d.t >= 2 * unit) { if (d.t > wordCut) flushWord(); else flushLetter(); }
+    }
+    flushWord();
+    return { words };
 }
 
-document.getElementById("decodeBtn").addEventListener("click", async () => {
-    const file = document.getElementById("audioInput").files[0];
-    if (!file) return setStatus("Choose a WAV file first.");
-
+$("decode").onclick = async () => {
+    const file = $("audio").files[0];
+    if (!file) return setStatus("Choose an audio file first.");
+    $("decoded").textContent = "";
+    $("decMorse").innerHTML = "";
     try {
         const arr = await file.arrayBuffer();
-        const audio = await getCtx().decodeAudioData(arr);
-        const r = decodeSamples(audio.getChannelData(0), audio.sampleRate);
+        const meta = readMeta(arr);
+        const audio = await getCtx().decodeAudioData(arr.slice(0));
+        const r = decodeSamples(audio.getChannelData(0), audio.sampleRate, meta);
         if (r.error) return setStatus(r.error);
-        setStatus("Decoded: " + r.text + "\nMorse: " + r.morse);
+        $("decoded").textContent = r.words.map(w => w.map(l => l.ch).join("")).join(" ");
+        render(r.words, $("decMorse"));
+        setStatus("Decoded.");
     } catch (e) {
         setStatus("Could not read that audio file.");
     }
-});
+};
