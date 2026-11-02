@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>MorseCrypt</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="card">
+
+    <h1>MorseCrypt</h1>
+    <p class="subtitle">Text to Morse audio and back</p>
+
+    <!-- ENCODE SECTION -->
+    <div class="section">
+        <h2>Encode</h2>
+
+        <textarea id="textInput" placeholder="Type text (letters, numbers, spaces)"></textarea>
+
+        <div class="row">
+            <button id="playBtn">Play</button>
+            <button id="saveBtn">Save WAV</button>
+        </div>
+    </div>
+
+    <!-- DECODE SECTION -->
+    <div class="section">
+        <h2>Decode</h2>
+
+        <input type="file" id="audioInput" accept=".wav,audio/*">
+
+        <button id="decodeBtn" class="full">Decode Audio</button>
+    </div>
+
+    <!-- OUTPUT -->
+    <p id="status" class="output"></p>
+
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
