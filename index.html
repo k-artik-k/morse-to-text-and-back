@@ -3,62 +3,81 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>MORSEEEEEEEE</title>
+    <title>MORSEEEE</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<main>
-    <header>
-        <h1>Dot<span>Dash</span></h1>
-        <!-- <p>Turn text into Morse beeps, and beeps back into text.</p> -->
-    </header>
 
-    <nav class="tabs">
-        <button class="tab on" data-tab="encode">Text to Morse</button>
-        <button class="tab" data-tab="decode">Morse to Text</button>
-    </nav>
+<div class="window">
+    <div class="titlebar">
+        <span class="icon"></span>
+        <!-- <span class="title">DitDah - Morse Translator</span> -->
+        <div class="caption">
+            <span class="cap min"></span>
+            <span class="cap max"></span>
+            <span class="cap close">&#10005;</span>
+        </div>
+    </div>
 
-    <!-- ENCODE -->
-    <section id="encodePane" class="panel">
-        <textarea id="text" placeholder="Type something... (letters, numbers, spaces)"></textarea>
-
-        <div class="speed">
-            <div class="speed-top">
-                <label for="gap">Pause length</label>
-                <strong id="gapVal">2x</strong>
-            </div>
-            <input type="range" id="gap" min="1" max="5" step="0.5" value="2">
-            <div class="presets">
-                <button class="preset" data-v="4">Beginner</button>
-                <button class="preset" data-v="2">Easy</button>
-                <button class="preset" data-v="1">Normal</button>
-            </div>
-            <!-- <small>Beeps stay the same. Only the pauses between letters and words get longer.</small> -->
+    <div class="client">
+        <div class="top">
+            <h1>Translate Morse code</h1>
+            <!-- <p>Turn text into Morse beeps, and beeps back into text.</p> -->
         </div>
 
-        <div id="preview" class="morse"></div>
+        <div class="body">
+            <nav class="tabs">
+                <button class="tab on" data-tab="encode">Text to Morse</button>
+                <button class="tab" data-tab="decode">Morse to Text</button>
+            </nav>
 
-        <div class="actions">
-            <button id="play" class="primary">Play</button>
-            <button id="stop">Stop</button>
-            <button id="save">Save WAV</button>
+            <!-- ENCODE -->
+            <section id="encodePane" class="panel">
+                <textarea id="text" placeholder="Type something... (letters, numbers, spaces)"></textarea>
+
+                <div class="speed">
+                    <div class="speed-top">
+                        <label for="gap">Pause length</label>
+                        <strong id="gapVal">2x</strong>
+                    </div>
+                    <input type="range" id="gap" min="1" max="5" step="0.5" value="2">
+                    <div class="presets">
+                        <button class="preset" data-v="4">Beginner</button>
+                        <button class="preset" data-v="2">Easy</button>
+                        <button class="preset" data-v="1">Normal</button>
+                    </div>
+                    <!-- <small>Beeps stay the same. Only the pauses between letters and words get longer.</small> -->
+                </div>
+
+                <div id="preview" class="morse"></div>
+
+                <div class="actions">
+                    <button id="play" class="primary">Play</button>
+                    <button id="stop">Stop</button>
+                    <button id="save">Save WAV</button>
+                </div>
+            </section>
+
+            <!-- DECODE -->
+            <section id="decodePane" class="panel" hidden>
+                <label class="file"><input type="file" id="audio" accept=".wav,audio/*"></label>
+                <div class="actions">
+                    <button id="decode" class="primary">Decode Audio</button>
+                </div>
+                <div id="decoded" class="big"></div>
+                <div id="decMorse" class="morse"></div>
+            </section>
         </div>
-    </section>
 
-    <!-- DECODE -->
-    <section id="decodePane" class="panel" hidden>
-        <label class="file">
-            <input type="file" id="audio" accept=".wav,audio/*">
-        </label>
-        <div class="actions">
-            <button id="decode" class="primary">Decode Audio</button>
-        </div>
-        <div id="decoded" class="big"></div>
-        <div id="decMorse" class="morse"></div>
-    </section>
+        <p id="status"></p>
+    </div>
+</div>
 
-    <p id="status"></p>
-</main>
+<div class="taskbar">
+    <span class="orb"></span>
+    <span class="task">Dottt Dashhhhh</span>
+</div>
+
 <script src="script.js"></script>
 </body>
 </html>
