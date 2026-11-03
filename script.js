@@ -122,7 +122,7 @@ function toWav(samples, s) {
 
 function fname() {
     const d = new Date(), p = n => String(n).padStart(2, "0");
-    return "morse-" + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + "-" +
+    return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + "-" +
         p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds()) + "-" +
         Math.random().toString(36).slice(2, 6) + ".wav";
 }

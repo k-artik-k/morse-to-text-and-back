@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>MORSEEEE</title>
+    <title>Morse To Text To Morse</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -11,17 +11,23 @@
 <div class="window">
     <div class="titlebar">
         <span class="icon"></span>
-        <!-- <span class="title">DitDah - Morse Translator</span> -->
+        <span class="title">MORSEEE</span>
         <div class="caption">
-            <span class="cap min"></span>
-            <span class="cap max"></span>
-            <span class="cap close">&#10005;</span>
+            <span class="cap min">
+                <svg width="12" height="12" viewBox="0 0 12 12"><rect x="1.5" y="7.5" width="9" height="3" fill="#fff" stroke="#1f2f4a"/></svg>
+            </span>
+            <span class="cap max">
+                <svg width="12" height="12" viewBox="0 0 12 12"><path d="M1.5 1.5h9v9h-9z M3.5 4.5h5v4h-5z" fill="#fff" fill-rule="evenodd" stroke="#1f2f4a"/></svg>
+            </span>
+            <span class="cap close">
+                <svg width="14" height="14" viewBox="0 0 14 14"><path d="M2.5 2.5l9 9M11.5 2.5l-9 9" stroke="#3d0a00" stroke-opacity=".75" stroke-width="4.4" stroke-linecap="round"/><path d="M2.5 2.5l9 9M11.5 2.5l-9 9" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></svg>
+            </span>
         </div>
     </div>
 
     <div class="client">
         <div class="top">
-            <h1>Translate Morse code</h1>
+            <!-- <h1>Translate Morse code</h1> -->
             <!-- <p>Turn text into Morse beeps, and beeps back into text.</p> -->
         </div>
 
@@ -33,21 +39,26 @@
 
             <!-- ENCODE -->
             <section id="encodePane" class="panel">
-                <textarea id="text" placeholder="Type something... (letters, numbers, spaces)"></textarea>
+                <textarea id="text" placeholder=""></textarea>
 
-                <div class="speed">
-                    <div class="speed-top">
-                        <label for="gap">Pause length</label>
-                        <strong id="gapVal">2x</strong>
+                <fieldset class="speed">
+                    <legend>Pause length</legend>
+                    <div class="slider-row">
+                        <span class="end">Short</span>
+                        <div class="slider">
+                            <input type="range" id="gap" min="1" max="5" step="0.5" value="2">
+                            <div class="ticks"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+                        </div>
+                        <span class="end">Long</span>
                     </div>
-                    <input type="range" id="gap" min="1" max="5" step="0.5" value="2">
+                    <div class="value">Current setting: <strong id="gapVal">2x</strong></div>
                     <div class="presets">
-                        <button class="preset" data-v="4">Beginner</button>
-                        <button class="preset" data-v="2">Easy</button>
-                        <button class="preset" data-v="1">Normal</button>
+                        <span class="preset" data-v="4">Beginner</span>
+                        <span class="preset" data-v="2">Easy</span>
+                        <span class="preset" data-v="1">Normal</span>
                     </div>
                     <!-- <small>Beeps stay the same. Only the pauses between letters and words get longer.</small> -->
-                </div>
+                </fieldset>
 
                 <div id="preview" class="morse"></div>
 
@@ -73,10 +84,6 @@
     </div>
 </div>
 
-<div class="taskbar">
-    <span class="orb"></span>
-    <span class="task">Dottt Dashhhhh</span>
-</div>
 
 <script src="script.js"></script>
 </body>
