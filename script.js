@@ -300,3 +300,64 @@ $("decode").onclick = async () => {
         setStatus("Could not read that audio file.");
     }
 };
+
+// ---------- ANIMATED FAVICON (works in all browsers) ----------
+(() => {
+    const S = 32;                        // favicon canvas size
+    const BG = "#1f2f4a";
+    const FG = "#ffffff";
+    // [drawFn, duration ms]
+    const FRAMES = [
+        [drawDot,   400],   // dot visible
+        [drawBlank, 300],   // blank
+        [drawDash,  700],   // dash visible
+        [drawBlank, 300],   // blank
+    ];
+
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = S;
+    const ctx = canvas.getContext("2d");
+
+    function drawBlank() {
+        ctx.fillStyle = BG;
+        ctx.fillRect(0, 0, S, S);
+    }
+
+    function drawDot() {
+        drawBlank();
+        ctx.fillStyle = FG;
+        ctx.beginPath();
+        ctx.arc(S / 2, S / 2, 5, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    function drawDash() {
+        drawBlank();
+        const cx = S / 2, cy = S / 2, hw = 11, hh = 4, r = 3;
+        ctx.fillStyle = FG;
+        ctx.beginPath();
+        ctx.roundRect(cx - hw, cy - hh, hw * 2, hh * 2, r);
+        ctx.fill();
+    }
+
+    function applyFavicon() {
+        let link = document.querySelector("link[rel='icon']");
+        if (!link) {
+            link = document.createElement("link");
+            link.rel = "icon";
+            document.head.appendChild(link);
+        }
+        link.type = "image/png";
+        link.href = canvas.toDataURL("image/png");
+    }
+
+    let idx = 0;
+    function tick() {
+        const [draw, dur] = FRAMES[idx];
+        draw();
+        applyFavicon();
+        idx = (idx + 1) % FRAMES.length;
+        setTimeout(tick, dur);
+    }
+    tick();
+})();
