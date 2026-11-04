@@ -46,9 +46,8 @@ body {
 
 .titlebar { position: relative; height: 30px; display: flex; align-items: center; gap: 6px; padding-left: 4px; }
 .icon {
-    width: 16px; height: 16px; border-radius: 50%;
-    border: 1px solid #1a4f86;
-    background: radial-gradient(circle at 35% 28%, #fff, #8fd0f8 42%, #1c78c8);
+    width: 16px; height: 16px;
+    background: url('assets/favicon.gif') center/contain no-repeat;
 }
 .title {
     font-size: 12px;
